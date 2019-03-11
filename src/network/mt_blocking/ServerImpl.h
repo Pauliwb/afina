@@ -52,6 +52,18 @@ private:
 
     // Thread to run network on
     std::thread _thread;
+
+    //-------------
+    // Maximum amount of workers
+    int _n_workers;
+
+    std::list<std::thread> _worker_threads;
+    std::mutex _worker_mutex;
+    std::condition_variable _worker_cv;
+
+    // Function for worker
+    void Worker_Run(int socket, std::list<std::thread>::iterator it);
+
 };
 
 } // namespace MTblocking

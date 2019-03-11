@@ -21,37 +21,48 @@ public:
     ~ThreadSafeSimplLRU() {}
 
     // see SimpleLRU.h
-    bool Put(const std::string &key, const std::string &value) override {
+    bool Put(const std::string &key, const std::string &value) override 
+    {
         // TODO: sinchronization
+        std::lock_guard<std::mutex> lg(_m);
         return SimpleLRU::Put(key, value);
     }
 
     // see SimpleLRU.h
-    bool PutIfAbsent(const std::string &key, const std::string &value) override {
+    bool PutIfAbsent(const std::string &key, const std::string &value) override 
+    {
         // TODO: sinchronization
+        std::lock_guard<std::mutex> lg(_m);
         return SimpleLRU::PutIfAbsent(key, value);
     }
 
     // see SimpleLRU.h
-    bool Set(const std::string &key, const std::string &value) override {
+    bool Set(const std::string &key, const std::string &value) override 
+    {
         // TODO: sinchronization
+        std::lock_guard<std::mutex> lg(_m);
         return SimpleLRU::Set(key, value);
     }
 
     // see SimpleLRU.h
-    bool Delete(const std::string &key) override {
+    bool Delete(const std::string &key) override
+    {
         // TODO: sinchronization
+        std::lock_guard<std::mutex> lg(_m);
         return SimpleLRU::Delete(key);
     }
 
     // see SimpleLRU.h
-    bool Get(const std::string &key, std::string &value) const override {
+    bool Get(const std::string &key, std::string &value) const override 
+    {
         // TODO: sinchronization
+        std::lock_guard<std::mutex> lg(_m);
         return SimpleLRU::Get(key, value);
     }
 
 private:
     // TODO: sinchronization primitives
+    std::mutex _m;
 };
 
 } // namespace Backend

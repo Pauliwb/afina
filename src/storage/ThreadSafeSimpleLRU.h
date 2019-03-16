@@ -53,7 +53,7 @@ public:
     }
 
     // see SimpleLRU.h
-    bool Get(const std::string &key, std::string &value) const override 
+    bool Get(const std::string &key, std::string &value) override 
     {
         // TODO: sinchronization
         std::lock_guard<std::mutex> lock(_mutex);

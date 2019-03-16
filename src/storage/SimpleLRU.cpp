@@ -9,7 +9,7 @@ bool SimpleLRU::Put(const std::string &key, const std::string &value)
 	auto found_it = _lru_index.find(key);
     if (found_it != _lru_index.end()) 
     {
-        return SetIter(el_it, value);
+        return SetIter(found_it, value);
     }
 
     size_t add_size = key.size() + value.size();

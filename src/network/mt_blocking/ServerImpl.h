@@ -54,15 +54,25 @@ private:
     std::thread _thread;
 
     //-------------
-    // Maximum amount of workers
     int _n_workers;
 
-    std::list<std::thread> _worker_threads;
-    std::mutex _worker_mutex;
-    std::condition_variable _worker_cv;
+    struct Worker 
+    {
+        Worker(): thread(), is_busy(false) {}
+        ~Worker() 
+        {
+            if(thread.joinable()) thread.join();
+        }
 
-    // Function for worker
-    void Worker_Run(int socket, std::list<std::thread>::iterator it);
+        std::thread thread;
+        std::atomic<bool> is_busy;
+    };
+
+    std::vector<Worker> _workers;
+
+    //Functions for worker
+    int Find_vacant_worker();
+    void Worker_Run(int client_socket, int worker_id);
 
 };
 //

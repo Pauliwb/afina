@@ -32,7 +32,7 @@ public:
             }
             _lru_head.reset();
         }
-        //_lru_head.reset(); // TODO: Here is stack overflow    ??????
+        //_lru_head.reset(); // TODO: Here is stack overflow    
     }
 
     // Implements Afina::Storage interface
@@ -67,7 +67,6 @@ private:
 
 
     // Current number of bytes, stored in the cache. 
-    // _current_size should be equal to sum of (key.size() + value.size())
     std::size_t _current_size;
 
     // Main storage of lru_nodes, elements in this list ordered descending by "freshness": in the head
@@ -80,7 +79,7 @@ private:
     // Index of nodes from list above, allows fast random access to elements by lru_node#key
     std::map<std::reference_wrapper<std::string>, std::reference_wrapper<lru_node>, std::less<std::string>> _lru_index;
 
-// Сюда нужно будет дописать 
+// X_X
 
     bool Check_free(size_t size_need);
 
@@ -93,7 +92,7 @@ private:
 
     // Set element value by _lru_index iterator
     bool SetIter(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
-                                 std::less<std::string>>::iterator toset_it, const std::string &value)
+                                 std::less<std::string>>::iterator toset_it, const std::string &value);
 
 };
 

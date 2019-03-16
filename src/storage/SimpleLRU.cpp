@@ -15,7 +15,7 @@ bool SimpleLRU::Put(const std::string &key, const std::string &value)
     size_t add_size = key.size() + value.size();
     if (!Check_free(add_size)) 
     {
-        return false;
+        return false;  // Error: Cannot free enough memory!
     }
 
     std::unique_ptr<lru_node> tmp(new lru_node{key, value, nullptr, nullptr});
@@ -65,13 +65,13 @@ bool SimpleLRU::Set(const std::string &key, const std::string &value)
 // See MapBasedGlobalLockImpl.h
 bool SimpleLRU::Delete(const std::string &key) 
 {
-	auto del_it = _lru_index.find(key);
-    if (del_it == _lru_index.end())
+	auto todel_it = _lru_index.find(key);
+    if (todel_it == _lru_index.end())
     {
         return false;
     }
 
-    return DeleteIt(del_it);
+    return DeleteIt(todel_it);
 }
 
 // See MapBasedGlobalLockImpl.h

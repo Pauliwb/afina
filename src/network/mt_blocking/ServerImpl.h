@@ -53,26 +53,17 @@ private:
     // Thread to run network on
     std::thread _thread;
 
-    //-------------
-    int _n_workers;
+    // X_X
 
-    struct Worker 
-    {
-        Worker(): thread(), is_busy(false) {}
-        ~Worker() 
-        {
-            if(thread.joinable()) thread.join();
-        }
+    std::condition_variable _server_stop;   
 
-        std::thread thread;
-        std::atomic<bool> is_busy;
-    };
+    // Server socket to accept connections on
+    uint32_t _w_max;
+    uint32_t _w_cur;
 
-    std::vector<Worker> _workers;
-
-    //Functions for worker
-    int Find_vacant_worker();
-    void Worker_Run(int client_socket, int worker_id);
+    // Thread to run network on
+    std::mutex _w_mutex;
+    void Worker(int socket);
 
 };
 //

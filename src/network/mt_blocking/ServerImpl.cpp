@@ -34,11 +34,16 @@ ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Loggi
 ServerImpl::~ServerImpl() {}
 
 // See Server.h
-void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
+void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_worker=128) {
     _logger = pLogging->select("network");
     _logger->info("Start mt_blocking network service");
+    
     // X-X
-    _n_workers = n_workers;
+    _logger->warn("n_workers = {}", n_workers);
+
+    _max_workers = n_workers;
+    _current_workers = 0;
+    // X-X
 
     sigset_t sig_mask;
     sigemptyset(&sig_mask);
@@ -103,15 +108,6 @@ void ServerImpl::Join()
 // See Server.h
 void ServerImpl::OnRun() 
 {
-    // Here is connection state
-    // - parser: parse state of the stream
-    // - command_to_execute: last command parsed out of stream
-    // - arg_remains: how many bytes to read from stream to get command argument
-    // - argument_for_command: buffer stores argument
-    std::size_t arg_remains;
-    Protocol::Parser parser;
-    std::string argument_for_command;
-    std::unique_ptr<Execute::Command> command_to_execute;
 
     while (running.load()) 
     {
@@ -150,18 +146,31 @@ void ServerImpl::OnRun()
 
         // TODO: Start new thread and process data from/to connection
         {
-            int vacant_worker_id = Find_vacant_worker();
-
-            if (vacant_worker_id < 0) 
             {
-                 _logger->warn("There are no vacant worker\n");
-                 close(client_socket);
-                 continue;
+                std::lock_guard<std::mutex> lock(_mutex);
+                if (_current_workers < _max_workers) 
+                {
+                    _current_workers += 1;
+                    std::thread thr;
+                    thr = std::thread(&ServerImpl::Worker, this, client_socket);
+                    thr.detach();
+                } 
+                else 
+                {
+                    static const std::string msg = "SERVER_ERROR No free workers\r\n";
+                    send(client_socket, msg.data(), msg.size(), 0);
+                    std::this_thread::sleep_for(std::chrono::microseconds(100)); 
+                    close(client_socket);
+                    _logger->warn("Closed connection due to the absence of workers\n");
+                }
             }
-
-            _logger->debug("Using worker: {}\n", vacant_worker_id);
-            _workers[vacant_worker_id].thread = std::thread(&ServerImpl::Worker_Run, this, client_socket, vacant_worker_id);
         }
+    }
+
+    {
+        std::unique_lock<std::mutex> lock(_mutex); 
+        while (_current_workers > 0)
+            _stop_server.wait(lock);
     }
 
     // Cleanup on exit...
@@ -187,8 +196,7 @@ int ServerImpl::Find_vacant_worker()
     return -1;
 }
 
-void ServerImpl::Worker_Run(int client_socket, int worker_id)
-{
+void ServerImpl::Worker(int client_socket) {
     // Here is connection state
     // - parser: parse state of the stream
     // - command_to_execute: last command parsed out of stream
@@ -198,6 +206,7 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
     Protocol::Parser parser;
     std::string argument_for_command;
     std::unique_ptr<Execute::Command> command_to_execute;
+
     // Process new connection:
     // - read commands until socket alive
     // - execute each command
@@ -205,7 +214,9 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
     try {
         int readed_bytes = -1;
         char client_buffer[4096];
-        while ((readed_bytes = read(client_socket, client_buffer, sizeof(client_buffer))) > 0) {
+        while ((running.load()) && ((readed_bytes = read(client_socket, client_buffer, sizeof(client_buffer))) > 0)) {
+            if (!running.load())
+                _logger->debug("Sent {} info that we stopped", client_buffer);
             _logger->debug("Got {} bytes from socket", readed_bytes);
 
             // Single block of data readed from the socket could trigger inside actions a multiple times,
@@ -214,6 +225,7 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
             // - read#1: [<command1 end> <argument> <command2> <argument for command 2> <command3> ... ]
             while (readed_bytes > 0) {
                 _logger->debug("Process {} bytes", readed_bytes);
+
                 // There is no command yet
                 if (!command_to_execute) {
                     std::size_t parsed = 0;
@@ -249,23 +261,24 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
                     readed_bytes -= to_read;
                 }
 
-                // There is command & argument - RUN!
+                // Thre is command & argument - RUN!
                 if (command_to_execute && arg_remains == 0) {
                     _logger->debug("Start command execution");
 
                     std::string result;
-                    command_to_execute->Execute(*pStorage, argument_for_command, result);
-
-                    // Send response
-                    result += "\r\n";
-                    if (send(client_socket, result.data(), result.size(), 0) <= 0) {
-                        throw std::runtime_error("Failed to send response");
-                    }
-
-                    // Check for global stop
-                    if (!running.load()) {
-                        close(client_socket);
-                        return;
+                    try {
+                        command_to_execute->Execute(*pStorage, argument_for_command, result);
+                        // Send response
+                        result += "\r\n";
+                        if (send(client_socket, result.data(), result.size(), 0) <= 0) {
+                            throw std::runtime_error("Failed to send response");
+                        }
+                    } catch (std::runtime_error &ex) {
+                        _logger->error("Failed to Execute {}", ex.what());
+                        result = "SERVER_ERROR " + std::string(ex.what()) + "\r\n";
+                        if (send(client_socket, result.data(), result.size(), 0) <= 0) {
+                            throw std::runtime_error("Failed to send response about server error");
+                        }
                     }
 
                     // Prepare for the next command
@@ -278,8 +291,6 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
 
         if (readed_bytes == 0) {
             _logger->debug("Connection closed");
-        } else if (errno == EAGAIN) {
-            _logger->debug("Connection closed for timeout");
         } else {
             throw std::runtime_error(std::string(strerror(errno)));
         }
@@ -288,11 +299,17 @@ void ServerImpl::Worker_Run(int client_socket, int worker_id)
     }
 
     // We are done with this connection
+    std::this_thread::sleep_for(std::chrono::microseconds(100)); // to avoid close before send issue
     close(client_socket);
-    _workers[worker_id].is_busy.store(false);
-}
 
-///
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _current_workers -= 1;
+        
+        if (_current_workers == 0)
+            _stop_server.notify_one();
+    }
+}
 
 } // namespace MTblocking
 } // namespace Network

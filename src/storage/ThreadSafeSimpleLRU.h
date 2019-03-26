@@ -24,7 +24,7 @@ public:
     bool Put(const std::string &key, const std::string &value) override 
     {
         // TODO: sinchronization
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> guard(_m);
         return SimpleLRU::Put(key, value);
     }
 
@@ -32,7 +32,7 @@ public:
     bool PutIfAbsent(const std::string &key, const std::string &value) override 
     {
         // TODO: sinchronization
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> guard(_m);
         return SimpleLRU::PutIfAbsent(key, value);
     }
 
@@ -40,7 +40,7 @@ public:
     bool Set(const std::string &key, const std::string &value) override 
     {
         // TODO: sinchronization
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> guard(_m);
         return SimpleLRU::Set(key, value);
     }
 
@@ -48,7 +48,7 @@ public:
     bool Delete(const std::string &key) override
     {
         // TODO: sinchronization
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> guard(_m);
         return SimpleLRU::Delete(key);
     }
 
@@ -56,13 +56,13 @@ public:
     bool Get(const std::string &key, std::string &value) override 
     {
         // TODO: sinchronization
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::lock_guard<std::mutex> guard(_m);
         return SimpleLRU::Get(key, value);
     }
 
 private:
     // TODO: sinchronization primitives
-    std::mutex _mutex;
+    std::mutex _m;
 };
 
 } // namespace Backend

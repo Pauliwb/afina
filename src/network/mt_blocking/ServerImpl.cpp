@@ -40,8 +40,8 @@ void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
     
     // X-X
 
-    _max_workers = n_workers;
-    _current_workers = 0;
+    _n_max_work = n_workers;
+    _n_current_work = 0;
     // X-X
 
     sigset_t sig_mask;

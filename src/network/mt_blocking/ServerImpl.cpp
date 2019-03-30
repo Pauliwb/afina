@@ -274,10 +274,10 @@ void ServerImpl::Worker(int client_socket) {
 
     //X_X
     std::lock_guard<std::mutex> lock(_work_mutex);
-    auto todel_it = _sockets_in_use.find(client_socket);
+    auto todel_it = _using_sockets.find(client_socket);
 
     if (todel_it != _using_sockets.end())
-    {
+    { 
         close(client_socket);
     }
 

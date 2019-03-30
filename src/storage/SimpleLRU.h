@@ -52,7 +52,6 @@ private:
         const std::string key;
         std::string value;
         lru_node *prev;
-        //std::unique_ptr<lru_node> prev;
         std::unique_ptr<lru_node> next;
     };
 
@@ -82,7 +81,7 @@ private:
 
 
     // 2) Set element value by _lru_index iterator
-    bool SetImpl(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
+    bool SetIter(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
                           std::less<std::string>>::iterator toset_it,
                  const std::string &value);
 

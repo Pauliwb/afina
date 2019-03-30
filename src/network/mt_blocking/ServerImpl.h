@@ -57,12 +57,12 @@ private:
 
     std::condition_variable _server_stop;   
 
-    // Server socket to accept connections on
-    uint32_t _w_max;
-    uint32_t _w_cur;
+    uint32_t _n_current_work;
+    uint32_t _n_max_work;
 
-    // Thread to run network on
-    std::mutex _w_mutex;
+    std::set<int> _using_sockets;
+    std::mutex _work_mutex;
+
     void Worker(int socket);
 
 };

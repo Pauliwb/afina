@@ -77,18 +77,27 @@ private:
 
 // X_X
 
-    bool Check_free(size_t size_need);
+    // 1) Put a new element 
+    bool PutImpl(const std::string &key, const std::string &value);
 
-    // Update node by it's reference
-    bool UpdateList(lru_node &updated_ref);
 
-    // Delete node by it's iterator in _lru_index
+    // 2) Set element value by _lru_index iterator
+    bool SetImpl(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
+                          std::less<std::string>>::iterator toset_it,
+                 const std::string &value);
+
+    // 3) Delete node by it's iterator in _lru_index
     bool DeleteIt(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
-                                      std::less<std::string>>::iterator todel_it);
+                               std::less<std::string>>::iterator todel_it);
 
-    // Set element value by _lru_index iterator
-    bool SetIter(std::map<std::reference_wrapper<const std::string>, std::reference_wrapper<lru_node>,
-                                 std::less<std::string>>::iterator toset_it, const std::string &value);
+
+    // 4) Update node by it's reference
+    bool UpdateList(lru_node &updated_node);
+
+
+    // 5) Remove LRU-nodes until we get as much as needfree free space
+    bool GetFreeImpl(size_t needfree);
+
 
 };
 

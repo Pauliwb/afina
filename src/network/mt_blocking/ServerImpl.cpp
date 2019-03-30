@@ -34,12 +34,11 @@ ServerImpl::ServerImpl(std::shared_ptr<Afina::Storage> ps, std::shared_ptr<Loggi
 ServerImpl::~ServerImpl() {}
 
 // See Server.h
-void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_worker=128) {
+void ServerImpl::Start(uint16_t port, uint32_t n_accept, uint32_t n_workers) {
     _logger = pLogging->select("network");
     _logger->info("Start mt_blocking network service");
     
     // X-X
-    _logger->warn("n_workers = {}", n_workers);
 
     _max_workers = n_workers;
     _current_workers = 0;
@@ -146,55 +145,30 @@ void ServerImpl::OnRun()
 
         // TODO: Start new thread and process data from/to connection
         {
+            
+            std::lock_guard<std::mutex> lock(_work_mutex);
+            if (_n_current_work < _n_max_work) 
             {
-                std::lock_guard<std::mutex> lock(_mutex);
-                if (_current_workers < _max_workers) 
-                {
-                    _current_workers += 1;
-                    std::thread thr;
-                    thr = std::thread(&ServerImpl::Worker, this, client_socket);
-                    thr.detach();
-                } 
-                else 
-                {
-                    static const std::string msg = "SERVER_ERROR No free workers\r\n";
-                    send(client_socket, msg.data(), msg.size(), 0);
-                    std::this_thread::sleep_for(std::chrono::microseconds(100)); 
-                    close(client_socket);
-                    _logger->warn("Closed connection due to the absence of workers\n");
-                }
+                _n_current_work += 1;
+                _using_sockets.emplace(client_socket);    
+                std::thread thr;
+                thr = std::thread(&ServerImpl::Worker, this, client_socket);
+                thr.detach();
+            } 
+            else 
+            {
+                _logger->debug("No free workers to process this connection\n");
+                close(client_socket);
             }
+            
         }
-    }
-
-    {
-        std::unique_lock<std::mutex> lock(_mutex); 
-        while (_current_workers > 0)
-            _stop_server.wait(lock);
     }
 
     // Cleanup on exit...
     _logger->warn("Network stopped");
 }
 
-int ServerImpl::Find_vacant_worker()
- {
-    for (int id = 0; id < _n_workers; ++id) 
-    {
-        if (!_workers[id].is_busy.load())
-        {
-             _logger->debug("Found vacant Worker {}", id);
 
-             if (_workers[id].thread.joinable()) 
-             {
-                 _workers[id].thread.join();
-                 _workers[id].is_busy.store(true);
-             }
-            return id;
-        }
-    }
-    return -1;
-}
 
 void ServerImpl::Worker(int client_socket) {
     // Here is connection state
@@ -298,17 +272,19 @@ void ServerImpl::Worker(int client_socket) {
         _logger->error("Failed to process connection on descriptor {}: {}", client_socket, ex.what());
     }
 
-    // We are done with this connection
-    std::this_thread::sleep_for(std::chrono::microseconds(100)); // to avoid close before send issue
-    close(client_socket);
+    //X_X
+    std::lock_guard<std::mutex> lock(_work_mutex);
+    auto todel_it = _sockets_in_use.find(client_socket);
 
+    if (todel_it != _using_sockets.end())
     {
-        std::lock_guard<std::mutex> lock(_mutex);
-        _current_workers -= 1;
-        
-        if (_current_workers == 0)
-            _stop_server.notify_one();
+        close(client_socket);
     }
+
+    _n_current_work -= 1;
+    _logger->debug("Thread for socket {} stops correctly", client_socket);
+    _server_stop.notify_one();
+
 }
 
 } // namespace MTblocking

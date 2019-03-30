@@ -184,7 +184,7 @@ bool SimpleLRU::GetFreeImpl(size_t needfree)
         tmp.swap(_lru_head);
         _lru_head = std::move(tmp->next);
 
-        _lru_index.erase(tmp->key)
+        _lru_index.erase(tmp->key);
     }
     return true;
 }

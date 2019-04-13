@@ -94,6 +94,16 @@ void ServerImpl::Stop()
 {
     running.store(false);
     shutdown(_server_socket, SHUT_RDWR);
+
+    // X-X
+    {
+        std::lock_guard<std::mutex> lock(_work_mutex);
+        for (auto socket : _using_sockets) {
+            shutdown(socket, SHUT_RD);
+        }
+    }
+    // X-X
+
 }
 
 // See Server.h
@@ -102,6 +112,20 @@ void ServerImpl::Join()
     assert(_thread.joinable());
     _thread.join();
     close(_server_socket);
+
+    // X-X     
+    {
+        auto timeout = std::chrono::seconds(2); 
+        std::unique_lock<std::mutex> lock(_work_mutex);
+        while (_using_sockets.size() > 0) {
+            _server_stop.wait_for(lock, timeout,
+                               [this]{
+                                   return _using_sockets.size() == 0;
+                               });
+        }
+    }
+    // X-X
+
 }
 
 // See Server.h
@@ -147,9 +171,8 @@ void ServerImpl::OnRun()
         {
             
             std::lock_guard<std::mutex> lock(_work_mutex);
-            if (_n_current_work < _n_max_work) 
+            if (_using_sockets.size() < _n_max_work) 
             {
-                _n_current_work += 1;
                 _using_sockets.emplace(client_socket);    
                 std::thread thr;
                 thr = std::thread(&ServerImpl::Worker, this, client_socket);
@@ -279,12 +302,14 @@ void ServerImpl::Worker(int client_socket) {
     if (todel_it != _using_sockets.end())
     { 
         close(client_socket);
+        _using_sockets.erase(todel_it); 
     }
 
-    _n_current_work -= 1;
     _logger->debug("Thread for socket {} stops correctly", client_socket);
-    _server_stop.notify_one();
 
+    if (_using_sockets.size() == 0) {
+        _server_stop.notify_one();
+    }
 }
 
 } // namespace MTblocking
